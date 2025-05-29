@@ -1,0 +1,27 @@
+{
+  "name": "magicalella/yii2-shopify",
+  "description": "Shopify component for Yii 2 framework",
+  "keywords": ["php", "yii2", "graphql", "yii2-data-provider", "yii2 graphql data provider"],
+  "type": "yii2-extension",
+  "license": "GPL-3.0-or-later",
+  "minimum-stability": "dev",
+  "authors": [
+    {
+      "name": "Raffaella Lollini",
+      "email": "raffaella.lollini@magilla.agency"
+    }
+  ],
+  "require": {
+    "php": ">=5.4.0",
+    "yiisoft/yii2": "~2.0.6"
+  },
+  "require-dev": {
+    "php": ">=5.4.0",
+    "yiisoft/yii2": "~2.0.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "magicalella\\shopify\\": ""
+    }
+  }
+}
