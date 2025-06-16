@@ -2,6 +2,7 @@
 
 namespace magicalella\shopify;
 
+use Yii;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
 use yii\base\Exception;
@@ -31,13 +32,32 @@ class Shopify extends Component
     const STATUS_SUCCESS = true;
     const STATUS_ERROR = false;
 
+    const QUERY_PRDUCTS_PAGINATE = <<<QUERY
+        query (\$numProducts: Int!, \$cursor: String){
+            products(first: \$numProducts, after: \$cursor) {
+                id
+                totalInventory
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+        }  
+     QUERY;
+
+    
 
     /**
      * @throws InvalidConfigException
      */
     public function init()
     {
-        
+        if (!extension_loaded('curl')) {
+            throw new PrestashopException(
+                'Please activate the PHP extension \'curl\' to allow use of PrestaShop webservice library'
+            );
+    }
+        parent::init();
     }
 
     /**
@@ -57,8 +77,13 @@ class Shopify extends Component
      */
     public function execute($query,$variables = [])
     {
+        echo SELF::$query;
+            
+        //print_r($shopify);
+        exit();
         $url = $this->getUrl($target);
         $headers = $this->getHeaders();
+        
         $content = [
             'query' => $query,
         ];
@@ -74,6 +99,7 @@ class Shopify extends Component
         $response['data'] = json_decode($response['data']);
         $response['header'] = $this->HeaderToArray($response['header']);
         print_r($response);
+        exit();
         return $response;
     }
 
