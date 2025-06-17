@@ -1,5 +1,4 @@
 <?php
-
 namespace magicalella\shopify;
 
 use Yii;
@@ -20,7 +19,7 @@ class Shopify extends Component
     /**
      * @var string
      */
-    public $accesToken;
+    public $accessToken;
     
     /**
      * @var string
@@ -31,21 +30,6 @@ class Shopify extends Component
     
     const STATUS_SUCCESS = true;
     const STATUS_ERROR = false;
-
-    const QUERY_PRDUCTS_PAGINATE = <<<QUERY
-        query (\$numProducts: Int!, \$cursor: String){
-            products(first: \$numProducts, after: \$cursor) {
-                id
-                totalInventory
-            }
-            pageInfo {
-                hasNextPage
-                endCursor
-            }
-        }  
-     QUERY;
-
-    
 
     /**
      * @throws InvalidConfigException
@@ -66,7 +50,7 @@ class Shopify extends Component
      * @param array $data
      * @return response []
      *      status 0/1 success o error
-     *      data dati della risposta formato object
+     *      data body della risposta formato object
      *      error eventuali errori di chiamata 
      *      code codice della risposta es 200 o 404
      *      header in header 
@@ -77,12 +61,9 @@ class Shopify extends Component
      */
     public function execute($query,$variables = [])
     {
-        echo SELF::$query;
-            
-        //print_r($shopify);
-        exit();
-        $url = $this->getUrl($target);
+        $url = $this->getUrl();
         $headers = $this->getHeaders();
+            
         
         $content = [
             'query' => $query,
@@ -93,10 +74,9 @@ class Shopify extends Component
         $content = json_encode($content);
         array_push($headers, 'Content-Length: ' . strlen($content));
         
-        $json = json_encode($data);
-        //print_r($json);
         $response = $this->curl($url,$headers,$content);
-        $response['data'] = json_decode($response['data']);
+        
+        $response['data'] = json_decode($response['body']);
         $response['header'] = $this->HeaderToArray($response['header']);
         print_r($response);
         exit();
@@ -142,7 +122,7 @@ class Shopify extends Component
         $body = substr($data, $header_size);
         
         $response['status'] = $status;
-        $response['data'] = $body;//dati
+        $response['body'] = $body;//dati
         $response['error'] = $error;//eventuali errori
         $response['code'] = $curl_info['http_code'];//codice restituito
         $response['header'] = $header;//header 
@@ -157,11 +137,11 @@ class Shopify extends Component
      * @return string Valid url for start executing
      * @throws InvalidConfigException
      */
-    private function getUrl($target) {
+    private function getUrl() {
         //https://{storeName}.myshopify.com/admin/api/2025-04/graphql.json
         $url_shopify = '';
         if($this->storeName && $this->apiVersion)
-            $url_shopify = $this->storeName.'.myshopify.com/admin/api/'.$this->apiVersion.'/graphql.json';
+            $url_shopify = 'https://'.$this->storeName.'.myshopify.com/admin/api/'.$this->apiVersion.'/graphql.json';
             
         if (filter_var($url_shopify, FILTER_VALIDATE_URL))
            return $url_shopify;
@@ -175,18 +155,18 @@ class Shopify extends Component
      */
     private function getHeaders()
     {
-        if($this->accesToken){
+        if($this->accessToken){
             $headers = [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-                'X-Shopify-Access-Toke' => $this->accesToken
+                'X-Shopify-Access-Token' => $this->accessToken
             ];
             
             return array_map(function($k, $v){
                 return "$k: $v";
             }, array_keys($headers), array_values($headers));
         }
-        throw new InvalidConfigException('Shopify::accesToken for ShopifyQuery::execute must be set.');
+        throw new InvalidConfigException('Shopify::accessToken for ShopifyQuery::execute must be set.');
     }
     
     /**
