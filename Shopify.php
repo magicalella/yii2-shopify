@@ -50,14 +50,15 @@ class Shopify extends Component
      * @param array $data
      * @return response []
      *      status 0/1 success o error
-     *      data body della risposta formato object
-     *      error eventuali errori di chiamata 
+     *      data dati risposta  object, se non ci sono dati Array()
+     *      message eventuali errori di chiamata 
      *      code codice della risposta es 200 o 404
      *      header in header 
      *              X-RateLimit-Limit: 100
      *              X-RateLimit-Remaining: 98
      *              X-RateLimit-Reset: 1580919168
      *              da considerare per gestire il limite delle chiamate
+     *     extensions
      */
     public function execute($query,$variables = [])
     {
@@ -71,15 +72,12 @@ class Shopify extends Component
         if($variables)
             $content['variables'] = $variables;
         
-        $content = json_encode($content);
+        $content = json_encode($content,JSON_UNESCAPED_SLASHES);//
+        //echo $content;
+        
         array_push($headers, 'Content-Length: ' . strlen($content));
         
         $response = $this->curl($url,$headers,$content);
-        
-        $response['data'] = json_decode($response['body']);
-        $response['header'] = $this->HeaderToArray($response['header']);
-        print_r($response);
-        exit();
         return $response;
     }
 
@@ -103,6 +101,13 @@ class Shopify extends Component
     {
         $response = [];
         $status = self::STATUS_SUCCESS;
+        $code = '200';
+        $message = '';
+        $body = '';
+        $extensions = [];
+        $dati = [];
+        
+        
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
         curl_setopt($ch, CURLOPT_POSTFIELDS, $content);
@@ -114,21 +119,38 @@ class Shopify extends Component
         $curl_info = curl_getinfo($ch);
         $error = curl_error($ch);
         if($error){
+            //eventuali errori
             $status = self::STATUS_ERROR;
+            $message .= $error;
         }
 
         $header_size = $curl_info['header_size'];
         $header = substr($data, 0, $header_size);
         $body = substr($data, $header_size);
-        
-        $response['status'] = $status;
-        $response['body'] = $body;//dati
-        $response['error'] = $error;//eventuali errori
-        $response['code'] = $curl_info['http_code'];//codice restituito
-        $response['header'] = $header;//header 
-        
+        $message .= $this->checkStatusCode($curl_info['http_code']);
+        if($body != '')
+            $body = json_decode($body);
+        else
+            $body = [];
+        if(!empty($body) && isset($body->errors)){
+            $status = self::STATUS_ERROR;
+            $message .= $body->errors[0]->message ;
+        }
+        // print_r($body);
+        // exit();
+        $code = $curl_info['http_code'];//codice restituito
+        $dati = isset($body->data)?$body->data:[];//dati
+        $extensions = isset($body->extensions)?$body->extensions:[];//ancora non so come usarlo
         curl_close($ch);
         
+        $response = [
+            'status' => $status,
+            'code' => $code,
+            'message' => $message,
+            'data' => $dati,
+            'extensions' => $extensions,
+            'header' => $header
+        ];
         return $response;
     }
     
@@ -189,40 +211,43 @@ class Shopify extends Component
      *
      * @throws ConnectifeException if HTTP status code is not 200 or 201
      */
-    protected function checkStatusCode($response)
+    protected function checkStatusCode($code)
     {
         $error_message = '';
         $title = '';
         $detail = '';
-        
-        if(key_exists('code', $response)){
-            if($response['code'] == '404'){
-                $title = $array_response['title'];
-                $detail = $array_response['detail'];
-            }
-        }
-        $array_response = json_decode($response);
-        switch ($array_response['code']) {
+        if(strpos($code,'5') !== false){
+            $error_message =  'Errors: An internal error occurred in Shopify. Check out the Shopify status page for more information.';
+        }else{
+            switch ($code) {
             case '200':
             case '201':
                 break;
-            case 'E0101':
-            case 'E0102':
-            case 'E0103':
-            case 'E0201':
-            case 'E0401':
-                $error_message = 'Codice: '.$array_response['code'].' '.$title.' '.$detail;
+                case '400':
+                    $error_message =  'Bad Request: The server will not process the request.';
             break;
+                case '402':
+                    $error_message =  'Payment Required: The shop is frozen. The shop owner will need to pay the outstanding balance to unfreeze the shop.';
+                break;
+                case '403':
+                   $error_message =  'Forbidden: The shop is frozen. The shop is forbidden. Returned if the store has been marked as fraudulent.';
+                break;
+                case '404':
+                   $error_message =  'Not Found: The resource isn’t available. This is often caused by querying for something that’s been deleted.';
+                break;
+                case '423':
+                   $error_message =  'Locked: The shop isn’t available. This can happen when stores repeatedly exceed API rate limits or due to fraud risk.';
+                break;
             default:
-                throw new ConnectifeException(
-                    'This call to Shopify Web Services returned an unexpected HTTP status of:' . $array_response['status']
-                );
+                   $error_message = 'Errore non codificato';
         }
-    
+        }
         if ($error_message != '') {
             $error_label = 'This call to Shopify failed and returned an HTTP status of %d. That means: %s.';
-            throw new ConnectifeException(sprintf($error_label, $request['status_code'], $error_message));
+            //throw new ConnectifeException(sprintf($error_label, $request['status_code'], $error_message));
+            $error_message = sprintf($error_label, $code, $error_message);
         }
+        return $error_message;
     }
 
     /**
@@ -255,6 +280,21 @@ class Shopify extends Component
         }
         return $return;
     }
+
+    /**
+    * Conta la differenza in secondi 
+    X-RateLimit-Reset
+     */
+    public function countDelay($time_reset){
+        $sleep = 50;
+        // $now = intval(Yii::$app->formatter->asTimestamp('now'));
+        // $time_reset = intval($time_reset);
+        // echo $time_reset.' - '.$now;
+        // if($time_reset > 0)
+        //     $sleep = ($time_reset-$now)+10;
+
+        sleep($sleep);
+}
 
 
 }
